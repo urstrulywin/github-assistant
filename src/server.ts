@@ -121,7 +121,7 @@ app.post(
         files,
       });
 
-      console.log("Claude review finished which is: , {
+      console.log("Claude review finished which is: ", {
         repository: `${owner}/${repo}`,
         number: pullNumber,
         findingCount: findings.length,
