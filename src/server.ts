@@ -8,9 +8,9 @@ const app = express();
 const port = Number(process.env.PORT ?? 3000);
 const webhookSecret = process.env.GITHUB_WEBHOOK_SECRET;
 
-if (!webhookSecret) {
-  throw new Error("GITHUB_WEBHOOK_SECRET is not set");
-}
+// if (!webhookSecret) {
+//   throw new Error("GITHUB_WEBHOOK_SECRET is not set");
+// }
 
 type PullRequestPayload = {
   action?: string;
