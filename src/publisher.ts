@@ -4,7 +4,7 @@ async function runPublisher(): Promise<void> {
   console.log("Publisher started:");
   while (true) {
     try {
-      const published = await publishOutboxBatch();
+      const published = publishOutboxBatch();
 
       if (published === 0) {
         await new Promise((resolve) => setTimeout(resolve, 1_000));
