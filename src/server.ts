@@ -2,7 +2,7 @@ import "dotenv/config";
 import express from "express";
 import { createHmac, timingSafeEqual } from "node:crypto";
 
-import { initializeDatabase, recordDelivery } from "./db.js";
+import { closeDatabase, initializeDatabase, recordDelivery } from "./db.js";
 
 const app = express();
 const port = Number(process.env.PORT ?? 3000);
@@ -134,11 +134,12 @@ async function startServer(): Promise<void> {
   });
 }
 
-void startServer().catch((error) => {
+void startServer().catch(async (error) => {
   console.error(
     "Server startup failed",
     error instanceof Error ? error.message : "Unknown error",
   );
+  await closeDatabase();
   process.exitCode = 1;
 });
 
