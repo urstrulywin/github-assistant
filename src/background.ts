@@ -2,7 +2,7 @@ import "dotenv/config";
 import { publishOutboxBatch } from "./outbox_publisher.js";
 import { worker } from "./review_worker.js";
 import { closeQueue } from "./review_queue.js";
-import { closeDatabase } from "./feed_db.js";
+import { closeDatabase } from "./db.js";
 import { redis } from "./redis.js";
 
 let stopping = false;

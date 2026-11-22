@@ -1,7 +1,7 @@
 import "dotenv/config";
 import { Worker } from "bullmq";
 import { redis } from "./redis.js";
-import { pool, safeErrorMessage, saveReviewResult } from "./feed_db.js";
+import { pool, safeErrorMessage, saveReviewResult } from "./db.js";
 import { getInstallationOctokit } from "./github.js";
 import { reviewPullRequest } from "./review.js";
 
@@ -74,6 +74,7 @@ async function runReview(
     repository: `${owner}/${repo}`,
     pullNumber,
     findingsCount: findings.length,
+    findings: findings, // probably large, but useful for debugging; consider removing in production
   });
 
   // This saves findings to Postgres only. It does not post comments to GitHub.

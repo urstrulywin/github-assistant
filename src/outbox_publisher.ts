@@ -1,4 +1,4 @@
-import { pool } from "./feed_db.js";
+import { pool } from "./db.js";
 import { reviewQueue } from "./review_queue.js";
 
 type OutboxRow = {

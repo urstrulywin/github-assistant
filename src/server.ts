@@ -2,7 +2,7 @@ import "dotenv/config";
 import express from "express";
 import { createHmac, timingSafeEqual } from "node:crypto";
 
-import { initializeDatabase, recordDelivery } from "./feed_db.js";
+import { initializeDatabase, recordDelivery } from "./db.js";
 
 const app = express();
 const port = Number(process.env.PORT ?? 3000);
@@ -127,7 +127,6 @@ app.get("/health", (_req, res) => {
 
 async function startServer(): Promise<void> {
   // initializeDatabase() runs every time the server starts, so it can be used to create tables if they don't exist
-  // should be changed so that it only runs once
   await initializeDatabase();
 
   app.listen(port, () => {
