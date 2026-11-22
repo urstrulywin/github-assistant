@@ -44,6 +44,14 @@ const schemaSql = `
     last_error TEXT
   );
 
+  CREATE TABLE IF NOT EXISTS review_results (
+    delivery_id TEXT PRIMARY KEY
+      REFERENCES webhook_deliveries(delivery_id) ON DELETE CASCADE,
+    findings JSONB NOT NULL,
+    model TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  );
+
   CREATE INDEX IF NOT EXISTS review_outbox_unpublished_idx
     ON review_outbox (id)
     WHERE published_at IS NULL;
@@ -96,6 +104,23 @@ export async function recordDelivery(input: {
   } finally {
     client.release();
   }
+}
+
+export async function saveReviewResult(input: {
+  deliveryId: string;
+  findings: unknown;
+  model: string | undefined;
+}): Promise<void> {
+  await pool.query(
+    `INSERT INTO review_results (delivery_id, findings, model)
+     VALUES ($1, $2::jsonb, $3)
+     ON CONFLICT (delivery_id)
+     DO UPDATE SET
+       findings = EXCLUDED.findings,
+       model = EXCLUDED.model,
+       created_at = NOW()`,
+    [input.deliveryId, JSON.stringify(input.findings), input.model ?? null],
+  );
 }
 
 export async function closeDatabase(): Promise<void> {

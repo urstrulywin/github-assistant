@@ -55,10 +55,19 @@ app.post(
     }
 
     const event = req.header("x-github-event");
-
     if (event !== "pull_request") {
       return res.status(200).send("Event ignored");
     }
+
+    const deliveryId = req.header("x-github-delivery");
+    if (!deliveryId) {
+      return res.status(400).send("Missing delivery ID");
+    }
+
+    console.info("GitHub webhook received", {
+      event,
+      deliveryId,
+    });
 
     const payload = JSON.parse(req.body.toString("utf8")) as PullRequestPayload;
 
@@ -79,17 +88,22 @@ app.post(
         .send("Missing installation or pull request details");
     }
 
-    const deliveryId = req.header("x-github-delivery");
-
-    if (!deliveryId) {
-      return res.status(400).send("Missing delivery ID");
-    }
+    console.info("Pull request webhook received", {
+      deliveryId,
+      action,
+      repository: `${owner}/${repo}`,
+      pullNumber,
+    });
 
     try {
       const isNew = await recordDelivery({
         deliveryId,
         event,
         payload,
+      });
+      console.info("Webhook delivery recorded", {
+        deliveryId,
+        duplicate: !isNew,
       });
 
       return res

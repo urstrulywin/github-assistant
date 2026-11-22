@@ -1,20 +1,82 @@
 import "dotenv/config";
 import { Worker } from "bullmq";
 import { redis } from "./redis.js";
-import { pool, safeErrorMessage } from "./feed_db.js";
+import { pool, safeErrorMessage, saveReviewResult } from "./feed_db.js";
+import { getInstallationOctokit } from "./github.js";
+import { reviewPullRequest } from "./review.js";
 
 type ReviewJobData = {
   deliveryId: string;
 };
 
-type DeliveryRow = {
-  payload: unknown;
+type PullRequestPayload = {
+  installation?: {
+    id?: number;
+  };
+  repository?: {
+    name?: string;
+    owner?: {
+      login?: string;
+    };
+  };
+  pull_request?: {
+    number?: number;
+    title?: string;
+  };
 };
 
-async function runReview(_payload: unknown): Promise<void> {
-  throw new Error(
-    "Review processing is not implemented yet; refusing to mark job complete",
-  );
+type DeliveryRow = {
+  payload: PullRequestPayload;
+};
+
+async function runReview(
+  deliveryId: string,
+  payload: PullRequestPayload,
+): Promise<void> {
+  const installationId = payload.installation?.id;
+  const owner = payload.repository?.owner?.login;
+  const repo = payload.repository?.name;
+  const pullNumber = payload.pull_request?.number;
+  const title = payload.pull_request?.title ?? "";
+
+  if (!installationId || !owner || !repo || !pullNumber) {
+    throw new Error("Stored webhook payload is missing required PR details");
+  }
+
+  const octokit = await getInstallationOctokit(installationId);
+
+  const { data: files } = await octokit.rest.pulls.listFiles({
+    owner,
+    repo,
+    pull_number: pullNumber,
+    per_page: 100,
+  });
+
+  const findings = await reviewPullRequest({
+    repository: `${owner}/${repo}`,
+    pullNumber,
+    title,
+    files: files.map((file) => ({
+      filename: file.filename,
+      status: file.status,
+      patch: file.patch,
+    })),
+  });
+
+  await saveReviewResult({
+    deliveryId,
+    findings,
+    model: process.env.ANTHROPIC_MODEL,
+  });
+
+  console.info("Review finished", {
+    deliveryId,
+    repository: `${owner}/${repo}`,
+    pullNumber,
+    findingsCount: findings.length,
+  });
+
+  // This saves findings to Postgres only. It does not post comments to GitHub.
 }
 
 export const worker = new Worker<ReviewJobData>(
@@ -57,7 +119,7 @@ export const worker = new Worker<ReviewJobData>(
     );
 
     try {
-      await runReview(row.payload);
+      await runReview(deliveryId, row.payload);
 
       await pool.query(
         `UPDATE webhook_deliveries
