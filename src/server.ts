@@ -1,8 +1,8 @@
 import "dotenv/config";
 import express from "express";
 import { createHmac, timingSafeEqual } from "node:crypto";
-import { getInstallationOctokit } from "./github.js";
-import { reviewPullRequest } from "./review.js";
+
+import { initializeDatabase, recordDelivery } from "./feed_db.js";
 
 const app = express();
 const port = Number(process.env.PORT ?? 3000);
@@ -55,7 +55,6 @@ app.post(
     }
 
     const event = req.header("x-github-event");
-    const deliveryId = req.header("x-github-delivery");
 
     if (event !== "pull_request") {
       return res.status(200).send("Event ignored");
@@ -69,69 +68,41 @@ app.post(
       return res.status(200).send("Pull request action ignored");
     }
 
+    const installationId = payload.installation?.id;
     const owner = payload.repository?.owner?.login;
     const repo = payload.repository?.name;
     const pullNumber = payload.pull_request?.number;
 
-    if (!owner || !repo || !pullNumber) {
-      console.error("Webhook is missing repository or PR details", {
-        deliveryId,
-      });
-      return res.status(400).send("Missing pull request details");
+    if (!installationId || !owner || !repo || !pullNumber) {
+      return res
+        .status(400)
+        .send("Missing installation or pull request details");
     }
 
-    // Acknowledge the webhook before doing API work. In production, put this
-    // work on a background queue instead of keeping it in the request.
-    res.status(200).send("Pull request accepted");
+    const deliveryId = req.header("x-github-delivery");
+
+    if (!deliveryId) {
+      return res.status(400).send("Missing delivery ID");
+    }
 
     try {
-      const octokit = await getInstallationOctokit();
-
-      const { data: files } = await octokit.request(
-        "GET /repos/{owner}/{repo}/pulls/{pull_number}/files",
-        {
-          owner,
-          repo,
-          pull_number: pullNumber,
-          per_page: 100,
-        },
-      );
-
-      console.log("Fetched pull request files", {
+      const isNew = await recordDelivery({
         deliveryId,
-        action,
-        repository: `${owner}/${repo}`,
-        number: pullNumber,
-        title: payload.pull_request?.title,
-        url: payload.pull_request?.html_url,
-        fileCount: files.length,
-        files: files.map((file) => ({
-          filename: file.filename,
-          status: file.status,
-          additions: file.additions,
-          deletions: file.deletions,
-          patchAvailable: Boolean(file.patch),
-        })),
+        event,
+        payload,
       });
 
-      const findings = await reviewPullRequest({
-        repository: `${owner}/${repo}`,
-        pullNumber,
-        title: payload.pull_request?.title ?? "",
-        files,
-      });
-
-      console.log("Claude review finished which is: ", {
-        repository: `${owner}/${repo}`,
-        number: pullNumber,
-        findingCount: findings.length,
-        findings,
-      });
+      return res
+        .status(202)
+        .send(isNew ? "Review accepted" : "Duplicate delivery ignored");
     } catch (error) {
-      console.error("Failed to fetch pull request files", {
+      console.error("Could not queue review", {
         deliveryId,
         message: error instanceof Error ? error.message : String(error),
       });
+
+      // A non-2xx response tells GitHub the delivery failed, so it can retry.
+      return res.status(500).send("Could not queue review");
     }
   },
 );
@@ -140,6 +111,24 @@ app.get("/health", (_req, res) => {
   res.status(200).send("OK");
 });
 
-app.listen(port, () => {
-  console.log(`Webhook server listening on port ${port}`);
+async function startServer(): Promise<void> {
+  // initializeDatabase() runs every time the server starts, so it can be used to create tables if they don't exist
+  // should be changed so that it only runs once
+  await initializeDatabase();
+
+  app.listen(port, () => {
+    console.log(`Webhook server listening on port ${port}`);
+  });
+}
+
+void startServer().catch((error) => {
+  console.error(
+    "Server startup failed",
+    error instanceof Error ? error.message : "Unknown error",
+  );
+  process.exitCode = 1;
 });
+
+// app.listen(port, () => {
+//   console.log(`Webhook server listening on port ${port}`);
+// });

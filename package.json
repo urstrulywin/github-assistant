@@ -5,6 +5,10 @@
   "main": "index.js",
   "scripts": {
     "start": "tsx src/server.ts",
+    "dev": "tsx src/server.ts",
+    "background": "tsx src/background.ts",
+    "publisher": "tsx src/publisher.ts",
+    "worker": "tsx src/review_worker.ts",
     "test:github-auth": "tsx src/test-github-auth.ts"
   },
   "repository": {
@@ -21,13 +25,17 @@
   "homepage": "https://github.com/urstrulywin/github-assistant-test#readme",
   "dependencies": {
     "@anthropic-ai/sdk": "^1.12.0",
+    "bullmq": "^6.7.8",
     "dotenv": "^18.0.10",
     "express": "^5.3.0",
-    "octokit": "^5.0.5"
+    "ioredis": "^6.0.0",
+    "octokit": "^5.0.5",
+    "pg": "^8.23.1"
   },
   "devDependencies": {
     "@types/express": "^5.0.6",
     "@types/node": "^26.6.6",
+    "@types/pg": "^8.23.1",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2"
   },
